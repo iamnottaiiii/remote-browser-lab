@@ -243,7 +243,7 @@ publish() {
   TUNNEL_URL="$URL" VNC_PASS="$VNC_PASS" TS_STATUS="$TS_STATUS" TS_PEERS="$TS_PEERS" python3 -c "
 import json, os, datetime
 now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-url = os.environ['TUNNEL_URL'] + '/vnc.html?autoconnect=true&password=' + os.environ['VNC_PASS'] + '&resize=scale'
+url = os.environ['TUNNEL_URL'] + '/vnc_lite.html?autoconnect=true&password=' + os.environ['VNC_PASS'] + '&resize=scale'
 try:
     d = json.load(open('live.json'))
 except Exception:
