@@ -105,10 +105,16 @@ rsync -a \
   --exclude='*/Service Worker/CacheStorage/*' --exclude='*/blob_storage/*' \
   --exclude='SingletonLock' --exclude='SingletonCookie' --exclude='SingletonSocket' \
   $HOME/chrome-profile/ /tmp/prof-stage/ 2>/dev/null
+MANIFEST=$(cd /tmp/prof-stage && find . -type f -exec sha256sum {} + 2>/dev/null | sort | sha256sum | awk '{print $1}')
+if [ -n "$MANIFEST" ] && [ "$MANIFEST" = "$(cat $HOME/.profile-manifest 2>/dev/null)" ]; then
+  echo 'Saved'
+  exit 0
+fi
 if tar -czf - -C /tmp/prof-stage . 2>/dev/null | openssl enc -aes-256-cbc -salt -pbkdf2 -pass env:PROFILE_KEY -out profile.tar.gz.enc 2>/dev/null; then
   git add profile.tar.gz.enc
   git commit -m 'profile save' > /dev/null 2>&1 || true
   git push > /dev/null 2>&1 || true
+  printf '%s' "$MANIFEST" > $HOME/.profile-manifest
   echo 'Saved'
   exit 0
 fi
@@ -204,6 +210,9 @@ fi
 
 DISPLAY=:99 google-chrome --no-sandbox --disable-dev-shm-usage --no-first-run --start-maximized --lang=en-US --force-webrtc-ip-handling-policy=disable_non_proxied_udp --disable-blink-features=AutomationControlled --user-data-dir=$HOME/chrome-profile https://duckduckgo.com http://127.0.0.1:8080/ > /tmp/chrome.log 2>&1 &
 
+# Continuous save: every minute, so nothing done in this session is lost.
+( while true; do sleep 60; bash $HOME/do-save.sh > /dev/null 2>&1 || true; done ) > /dev/null 2>&1 &
+
 if [ -n "$TUNNEL_TOKEN" ]; then
   # Named tunnel: the browser lives at browser.bjvfi.com.
   /tmp/cloudflared tunnel --no-autoupdate run --token "$TUNNEL_TOKEN" > /tmp/tunnel.log 2>&1 &
@@ -279,12 +288,9 @@ publish
 # Keep the session alive, refreshing the heartbeat so the door page
 # knows the browser is awake. The job itself is capped by the
 # workflow timeout (355 minutes). The profile is saved every
-# fourth cycle, about every 20 minutes, and once more at the end.
+# minute by its own loop, and once more at the end.
 for i in $(seq 1 64); do
   sleep 300
   publish
-  if [ $((i % 4)) -eq 0 ]; then
-    save_profile
-  fi
 done
 save_profile
